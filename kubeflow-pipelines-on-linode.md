@@ -2,20 +2,36 @@
 
 ## 1. Create an account on Linode and claim $100 credit
 
+
+To claim $100 free credit, you can head over to any of Linde's documentation pages e.g. `https://www.linode.com/docs/guides/terraform-vs-helm/` and click on the banner callout. You will still have to add a payment method but there won't be any charge to your account as long as you stay within $100 limit.
+
+This tutorial will create a fairly light-weight cluster that costs a maximum of $36 per month so you're more than covered.
+
 ## 2. Create Kubernetes cluster
+
+After logging in, go to Kubernetes tab on the left pane.
 
 ![Create cluster page](images/create-cluster.png)
 
+
+Click on 'Create Cluster', this will take you to configuration page:
+
 ![Cluster configuration page](images/create-cluster-settings.png)
 
+Choose a location that is closer to you. For worker nodes, we can use Shared CPU with the cheapest option as shown. This is more than enough for our purposes. Once satisfied, click on 'Create Cluster'. It will take a few seconds, then you'll be redirected to the following screen which shows the resources being provisioned for you.
+
 ![Cluster being provisioned](images/cluster-provisioning-1.png)
+
+
+After a few minutres, you'll get the green signal. This means that your cluster has been deployed and ready to use. Exciting!
 
 ![Cluster provisioned, initialization complete](images/cluster-running-1.png)
 
 ## 3. Connect to your Kubernetes cluster
 
-- Download `kubeconfig.yaml` file from Linode
-- Set up `kubectl` to use your configuration file to connect to Linode
+- Download **Kubeconfig** file from Linode, you can see it on the same page as your cluster.
+
+- Make sure `kubectl` is installed and then set up `kubectl` to use your configuration file to connect to Linode's k8s cluster.
 
 ```bash
 
@@ -27,7 +43,7 @@ kubectl get pods -A
 
 ```
 
-You will get output similar to the following. This shows all the pods deployed by Linode's Kubernetes installation.
+You will get an output similar to the following. This shows all the pods deployed by Linode's Kubernetes installation.
 
 ```bash
 
@@ -52,7 +68,7 @@ It can take 5 to 10 minutes until all pods are in `Running` state. Make sure tha
 ## 4. Install Kubeflow Pipelines
 
 
-Now that we know that our Kubernetes cluster is up and running, we want to install Kubeflow Pipelines on it. To do that, run the following commands one by one.
+Now that we know that our Kubernetes cluster is up and running, we want to install Kubeflow Pipelines in it. To do that, run the following commands one by one.
 
 ```bash
 
@@ -68,7 +84,7 @@ kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.
 kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
 ```
 
-These commands install the necessary Deployments, Pods, and Services as well as other Kubernetes objects that constitute Kubeflow. Note that all the objects are installed in the `kubeflow` namespace.
+These commands install the necessary Deployments, Pods, Services, Namespaces as well as other Kubernetes objects that constitute Kubeflow Pipelines. Note that all the objects are installed in the `kubeflow` namespace.
 
 Since this process involves downloading and starting up a lot of container images, this can take a while. In my experience, it can take anywhere from 10 to 15 minutes before you Kubeflow installation is up and running. 
 
@@ -90,10 +106,8 @@ kubeflow      ml-pipeline-visualizationserver-848b574b44-b7dxx   0/1     Contain
 kubeflow      mysql-7d8b8ff4f4-szkkv                             0/1     ContainerCreating   0          29s
 kubeflow      workflow-controller-589ff7c479-8cd4s               0/1     ContainerCreating   0          29s
 ```
-To make sure that all the pods have been correctly initialized and running you can run the following command.
 
-
-You should all the pods in `Running` state.
+To make sure that all the pods have been correctly initialized and running you can run the following command. You should wait untill you see all the pods in `Running` state.
 
 
 ```bash
@@ -115,32 +129,35 @@ ml-pipeline-visualizationserver-848b574b44-b7dxx   1/1     Running   0          
 mysql-7d8b8ff4f4-szkkv                             1/1     Running   0               9m45s
 workflow-controller-589ff7c479-8cd4s               1/1     Running   0               9m45s
 ```
-In case you run into problems, you can always look inside a Pod to see what errors or logs is it generated. For example:
+
+In case you run into problems, you can always look inside a Pod to see what errors or logs has it generated. For example:
 
 ```bash
 # Get information about the pod named `pod_name`. This includes any events and error information
 kubectl describe pod pod_name -n kubeflow
 ```
 
-
 ## 5. Run a simple pipeline
 
-First, you need to expose the Pipeline UI so that you can access it from your browser.
+Now that Kubeflow Piplines are installed and running we can write our own pipelines and execute them. But first, you need to expose the Pipeline UI so that you can access it from your browser.
 
 ### Expose Pipeline UI
+
+Run the following command to expose the UI:
 
 ```bash
 kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80
 ```
 
-
-Visit the address `localhost:8080` in your browser and you should be greeted with your very own installation of Kubeflow Pipelines running on your very own Linode Kubernetes Cluster.
+Visit the address `localhost:8080` in your browser and you should be greeted with your very own installation of Kubeflow Pipelines running on your very own Linode Kubernetes Cluster. Nice!
 
 Now, we would like to run a simple Pipeline to make sure that everything is working correctly. Before we do that, we need to do some preparation.
 
-The Pipeline I have selected uses MinIO to store data. That is to say that it needs to connect to MinIO instance running . Now you might ask: "Wait! I didn't install any MinIO ?". You're right. But Kubeflow comes with an installation of MinIO since it requires it to store Pipeline metadata and artifacts (e.g. models, data) generated by Pipeline executions. So essentially, we get MinIO installation for free.
+### Getting MinIO service's IP
 
-Still, you need to know which IP address is it accessible at.
+The Pipeline I have selected uses MinIO to store data. That is to say that it needs to connect to a MinIO instance to store data. Now you might ask: "Wait! I didn't install any MinIO ?". You're right. But Kubeflow comes with an installation of MinIO since it requires it to store Pipeline metadata and artifacts (e.g. models, data) generated by Pipeline executions. So essentially, we get a MinIO installation for free.
+
+Still, you need to know which IP address is it accessible at. To find that out, run:
 
 ```bash
 
@@ -179,11 +196,11 @@ Once satisfied with the changes you can compile the pipeline by running:
 python minio-census-pipeline.py
 ```
 
-This will generate a file called `.yaml` in you working directory. You will have to upload this file - which contains the Pipeline specification - to Kubeflow.
+This will generate a file called `minio-census-pipeline.yaml` in your working directory. You will have to upload this file - which contains the Pipeline specification - to Kubeflow.
 
 ### Upload, Create, and Run the Pipeline
 
-To do this, navigate to the Pipelines tab in Kubeflow Pipelines UI e.g. `http://localhost:8080/#/pipelines` and click 'Upload Pipeline'. Choose the compiled pipeline file e.g. `.yaml`, give it a name and click 'Create'.
+To do this, navigate to the Pipelines tab in Kubeflow Pipelines UI e.g. `http://localhost:8080/#/pipelines` and click 'Upload Pipeline'. Choose the compiled pipeline file e.g. `minio-census-pipeline.yaml`, give it a name and click 'Create'.
 
 ![pipeline run params](images/create-pipeline-1.png)
 
@@ -191,20 +208,26 @@ This will take you to a page with visualization of the pipeline. Click on 'Creat
 
 ![pipeline run params](images/run-params.png)
 
+This starts pipeline execution.
 
-### Viewing Results
+### Viewing Pipeline Execution Results
+
 
 ![pipeline run params](images/after-run-pipeline-1.png)
 
+Clicking on `condition-1` box gives you more insight into what the pipeline did. As we can see, we downloaded the data, created a data frame and then stored it in MinIO.
+
 ![pipeline run params](images/after-run-pipeline-2.png)
 
-Expose MinIO UI
+### Viewing Written Data in MinIO
+
+To access MinIO UI, we need to expose the respective service. Run:
 
 ```bash
 kubectl port-forward -n kubeflow svc/minio-service 9000:9000
 ```
 
-Now head over to `localhost:9000` in your browser, and if prompter use the following access key:
+Now head over to `localhost:9000` in your browser, and if prompted use the following access key:
 
 
 ```
@@ -212,20 +235,20 @@ Access Key: minio
 Secret Key: minio123
 ```
 
-These are the default values. You can see the downloaded dataset
+These are the default values. You can see the downloaded dataset here:
 
 ![pipeline run params](images/minio-io.png)
 
 ## Troubleshooting
 
-If you are running Kubernetes via Minikube, you might encounter the following error and all your Pipeline executions will fail:
+If you encounter the following error:
 
 
 ```bash
 $ failure to run pipeline OCI runtime create failed: runc create failed: unable to start container process: exec: "/var/run/argo/argoexec": stat /var/run/argo/argoexec: no such file
 ```
 
-To resovle this problem and learn more about the reason, see this GitHub issue: [Emissary Executer](https://github.com/kubeflow/pipelines/issues/9119)
+ ... and all your Pipeline executions fail, don't worry. To resovle this problem and learn more about the reason, see this GitHub issue: [Emissary Executer](https://github.com/kubeflow/pipelines/issues/9119)
 
 
 ## Acknowledgements
