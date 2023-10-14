@@ -55,13 +55,17 @@ It can take 5 to 10 minutes until all pods are in `Running` state. Make sure tha
 Now that we know that our Kubernetes cluster is up and running, we want to install Kubeflow Pipelines on it. To do that, run the following commands one by one.
 
 ```bash
-export PIPELINE_VERSION=2.0.1
 
-kubectl -- apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+# Standalone Kubeflow Pipeline deployment
+# From: https://www.kubeflow.org/docs/components/pipelines/v1/installation/standalone-deployment/
 
-kubectl -- wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+export PIPELINE_VERSION=2.0.2
 
-kubectl -- apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
+kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+
+kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+
+kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
 ```
 
 These commands install the necessary Deployments, Pods, and Services as well as other Kubernetes objects that constitute Kubeflow. Note that all the objects are installed in the `kubeflow` namespace.
@@ -160,8 +164,16 @@ Events:            <none>
 
 ```
 
+### Modifying the pipeline file
 
-Once you have the IP address, head over to `kfp-examples/minio-census-pipeline.py` example and change the values in the file accordingly. Once satisfied with the changes you can compile the pipeline by running:
+You have to make two changes in this file:
+
+1. Once you have the IP address of `minio-service`, head over to `kfp-examples/minio-census-pipeline.py` example and change the values in the file accordingly. You can search for `minio-service-ip-here` and replace all ocurrences with the actual service IP address. 
+
+
+2. In order to download data from US Census API, you'll need to get a free API key. You can visit the [Census.Gov](https://api.census.gov/data/key_signup.html) page to request one. Once you have the key, modify the function `download_table_data` and place your key in the variable `census_key`.
+
+Once satisfied with the changes you can compile the pipeline by running:
 
 ```bash
 python minio-census-pipeline.py
@@ -169,12 +181,40 @@ python minio-census-pipeline.py
 
 This will generate a file called `.yaml` in you working directory. You will have to upload this file - which contains the Pipeline specification - to Kubeflow.
 
+### Upload, Create, and Run the Pipeline
+
 To do this, navigate to the Pipelines tab in Kubeflow Pipelines UI e.g. `http://localhost:8080/#/pipelines` and click 'Upload Pipeline'. Choose the compiled pipeline file e.g. `.yaml`, give it a name and click 'Create'.
+
+![pipeline run params](images/create-pipeline-1.png)
 
 This will take you to a page with visualization of the pipeline. Click on 'Create Run' at the top. Select 'default' as Experiment and in the pipeline paramters section, enter `acs` for dataset. Leave all other paramters as is. Click on 'Start' to start the execution of this pipeline. 
 
-
 ![pipeline run params](images/run-params.png)
+
+
+### Viewing Results
+
+![pipeline run params](images/after-run-pipeline-1.png)
+
+![pipeline run params](images/after-run-pipeline-2.png)
+
+Expose MinIO UI
+
+```bash
+kubectl port-forward -n kubeflow svc/minio-service 9000:9000
+```
+
+Now head over to `localhost:9000` in your browser, and if prompter use the following access key:
+
+
+```
+Access Key: minio
+Secret Key: minio123
+```
+
+These are the default values. You can see the downloaded dataset
+
+![pipeline run params](images/minio-io.png)
 
 ## Troubleshooting
 
