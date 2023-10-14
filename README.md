@@ -14,9 +14,9 @@ We will use the following technologies:
 
 ## Acknowledgements
 
-- MinIO Blog
-- Florian Pach's MNIST Pipeline on GitHub
-- NetworkChuck on Youtube
+- [MinIO Blog - Building an ML Data Pipeline with MinIO and Kubeflow v2.0](https://blog.min.io/building-an-ml-data-pipeline-with-minio-and-kubeflow-v2-0/)
+- [Florian Pach's Kubeflow MNIST Pipeline on GitHub](https://github.com/flopach/digits-recognizer-kubeflow)
+- [NetworkChuck's Kubernetes Video on Youtube](https://www.youtube.com/watch?v=7bA0gTroJjw)
 
 
 
