@@ -4,14 +4,25 @@
 
 ## 2. Create Kubernetes cluster
 
+![Create cluster page](images/create-cluster.png)
+
+![Cluster configuration page](images/create-cluster-settings.png)
+
+![Cluster being provisioned](images/cluster-provisioning-1.png)
+
+![Cluster provisioned, initialization complete](images/cluster-running-1.png)
+
 ## 3. Connect to your Kubernetes cluster
 
 - Download `kubeconfig.yaml` file from Linode
-- Set up `kubectl` to use your file
+- Set up `kubectl` to use your configuration file to connect to Linode
+
 ```bash
 
+# Tell kubectl to use settings from this file to connect to k8s cluster
 export KUBECONFIG=/path/to/linode-k8s-cluster-kubeconfig.yaml
 
+# See the status of Pods running on k8s cluster
 kubectl get pods -A
 
 ```
@@ -35,6 +46,8 @@ kube-system   kube-proxy-995b8                          1/1     Running   0     
 kube-system   kube-proxy-lmvxv                          1/1     Running   0          178m
 kube-system   kube-proxy-wwnl6                          1/1     Running   0          178m
 ```
+
+It can take 5 to 10 minutes until all pods are in `Running` state. Make sure that all Pods are in `Running` state before continuing with the next steps.
 
 ## 4. Install Kubeflow Pipelines
 
@@ -101,7 +114,7 @@ workflow-controller-589ff7c479-8cd4s               1/1     Running   0          
 In case you run into problems, you can always look inside a Pod to see what errors or logs is it generated. For example:
 
 ```bash
-
+# Get information about the pod named `pod_name`. This includes any events and error information
 kubectl describe pod pod_name -n kubeflow
 ```
 
@@ -127,20 +140,56 @@ Still, you need to know which IP address is it accessible at.
 
 ```bash
 
-kubectl describe svc minio-service
+$ kubectl describe svc minio-service
+
+Name:              minio-service
+Namespace:         kubeflow
+Labels:            application-crd-id=kubeflow-pipelines
+Annotations:       <none>
+Selector:          app=minio,application-crd-id=kubeflow-pipelines
+Type:              ClusterIP
+IP Family Policy:  SingleStack
+IP Families:       IPv4
+IP:                <Use this IP in python file>
+IPs:               <Use this IP in python file>
+Port:              http  9000/TCP
+TargetPort:        9000/TCP
+Endpoints:         <endpoint ip>:9000
+Session Affinity:  None
+Events:            <none>
+
 ```
 
 
-Once you have the IP address, head over to `kfp-examples/minio-census-pipeline.py` example and change the values in the file accordingly.
+Once you have the IP address, head over to `kfp-examples/minio-census-pipeline.py` example and change the values in the file accordingly. Once satisfied with the changes you can compile the pipeline by running:
 
+```bash
+python minio-census-pipeline.py
+```
+
+This will generate a file called `.yaml` in you working directory. You will have to upload this file - which contains the Pipeline specification - to Kubeflow.
+
+To do this, navigate to the Pipelines tab in Kubeflow Pipelines UI e.g. `http://localhost:8080/#/pipelines` and click 'Upload Pipeline'. Choose the compiled pipeline file e.g. `.yaml`, give it a name and click 'Create'.
+
+This will take you to a page with visualization of the pipeline. Click on 'Create Run' at the top. Select 'default' as Experiment and in the pipeline paramters section, enter `acs` for dataset. Leave all other paramters as is. Click on 'Start' to start the execution of this pipeline. 
+
+
+![pipeline run params](images/run-params.png)
 
 ## Troubleshooting
 
-See GitHub issue: [Docker vs. Emissary as driver](https://github.com/kubeflow/pipelines/issues/9119)
+If you are running Kubernetes via Minikube, you might encounter the following error and all your Pipeline executions will fail:
+
+
+```bash
+$ failure to run pipeline OCI runtime create failed: runc create failed: unable to start container process: exec: "/var/run/argo/argoexec": stat /var/run/argo/argoexec: no such file
+```
+
+To resovle this problem and learn more about the reason, see this GitHub issue: [Emissary Executer](https://github.com/kubeflow/pipelines/issues/9119)
 
 
 ## Acknowledgements
 
-- MinIO Blog
-- Florian Pach on GitHub
-- NetworkChuck on Youtube
+- [MinIO Blog - Building an ML Data Pipeline with MinIO and Kubeflow v2.0](https://blog.min.io/building-an-ml-data-pipeline-with-minio-and-kubeflow-v2-0/)
+- [Florian Pach's Kubeflow MNIST Pipeline on GitHub](https://github.com/flopach/digits-recognizer-kubeflow)
+- [NetworkChuck's Kubernetes Video on Youtube](https://www.youtube.com/watch?v=7bA0gTroJjw)
