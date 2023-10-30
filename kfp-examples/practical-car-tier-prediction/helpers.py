@@ -20,7 +20,7 @@ def check_if_raw_data_exists_already(
     
         # Create client with access and secret key.
         client = Minio(
-            '10.110.111.225:9000',
+            '10.108.175.70:9000',
             'minio',
             'minio123',
             secure=False
@@ -86,12 +86,14 @@ def save_raw_data_to_bucket(
     logger = logging.getLogger('kfp_logger')
     logger.setLevel(logging.INFO)
 
-    df = pd.read_csv(raw_data.path)
+    logger.info(f'Reading data from: {raw_data.path}')
+    df = pd.read_csv(raw_data.path, sep=';')
+    logger.info('Columns: ' + ', '.join(df.columns))
 
     try:
         # Create client with access and secret key
         client = Minio(
-            '10.110.111.225:9000',
+            '10.108.175.70:9000',
             'minio',
             'minio123',
             secure=False
@@ -129,6 +131,8 @@ def prepare_cleaned_dataset(
     """
     
     """
+    
+    # TODO: cleaning should happen after making derived features
 
     import io
     import logging
@@ -142,27 +146,29 @@ def prepare_cleaned_dataset(
         logger.setLevel(logging.INFO)
 
         # Create client with access and secret key
-        client = Minio('10.110.111.225:9000',
+        client = Minio('10.108.175.70:9000',
                     'minio',
                     'minio123',
                     secure=False)
 
+        logger.info(f'Attempting to read data')
         response = client.get_object(bucket, object)
         df = pd.read_csv(io.BytesIO(response.data))
+        logger.info('Columns: ' + ', '.join(df.columns))
 
         cleaned_df = df.copy(deep=True)
 
         # These limits were taken from the quantile dataframes. Ideally we should pass-in the dataframe
         # and extract the limits automatically.
         cleaned_df = df[
-        ((df['price'] >= 1100) & (df['price'] <= 51950)) & \
-        ((df['ctr_cleaned'] >= 0.006450) & (df['ctr_cleaned'] <= 0.130435)) & \
-        ((df['search_views'] >= 63) & (df['search_views'] <= 11119.00)) & \
-        ((df['detail_views'] >= 1) & (df['detail_views'] <= 900)) & \
-        ((df['stock_days'] >= 1) & (df['stock_days'] <= 112)) & \
-        ((df['first_registration_year'] >= 1989) & (df['first_registration_year'] <= 2023)) &
-        (df['detail_views_per_day_in_stock'] <= 25)  | \
-        ((df['product_tier'] == 'Premium') | (df['product_tier'] == 'Plus')) # we don't want to loose precious examples of minority classes
+            ((df['price'] >= 1100) & (df['price'] <= 51950)) & \
+            #?((df['ctr_cleaned'] >= 0.006450) & (df['ctr_cleaned'] <= 0.130435)) & \
+            ((df['search_views'] >= 63) & (df['search_views'] <= 11119.00)) & \
+            ((df['detail_views'] >= 1) & (df['detail_views'] <= 900)) & \
+            ((df['stock_days'] >= 1) & (df['stock_days'] <= 112)) & \
+            ((df['first_registration_year'] >= 1989) & (df['first_registration_year'] <= 2023)) | # TODO: <== fix this logical operator after derived features
+            #?(df['detail_views_per_day_in_stock'] <= 25)  | \
+            ((df['product_tier'] == 'Premium') | (df['product_tier'] == 'Plus')) # we don't want to loose precious examples of minority classes
         ]
 
         # Write this df as CSV in MinIO
@@ -187,18 +193,25 @@ def product_tier_counts_and_percentages(
     product_counts_md: Output[Markdown]
 ):
 
+    import logging
     import pandas as pd
 
+    logger = logging.getLogger('kfp_logger')
+    logger.setLevel(logging.INFO)
     
+    logger.info(f'Reading data from: {cleaned_dataset.path}')
     df = pd.read_csv(cleaned_dataset.path)
+    logger.info('Columns: ' + ', '.join(df.columns))
 
     product_tier_counts_df = df[['product_tier', 'article_id']].groupby(['product_tier']).count()
 
     product_tier_percentages_df = product_tier_counts_df * 100 / len(df)
 
+    logger.info('Writing counts')
     with open(product_counts_md.path, 'w') as f:
         f.write(product_tier_counts_df.to_markdown())
 
+    logger.info('Writing percentages')
     with open(product_percentage_md.path, 'w') as f:
         f.write(product_tier_percentages_df.to_markdown())
 
@@ -227,6 +240,7 @@ def data_preparation_pipeline(bucket: str, object: str) -> Dataset:
         )
 
         # Should happen after `save_raw_data_to_bucket`
+        # TODO: cleaning should happen after making derived features
         cleaned_data = prepare_cleaned_dataset(
             bucket=bucket,
             object=object
@@ -241,6 +255,7 @@ def data_preparation_pipeline(bucket: str, object: str) -> Dataset:
         name='Data-Already-Exists'
     ):
 
+        # TODO: cleaning should happen after making derived features
         cleaned_data = prepare_cleaned_dataset(
             bucket=bucket,
             object=object
@@ -263,3 +278,4 @@ if __name__ == "__main__":
             'object': 'as24-study.csv'
         }
     )
+    
