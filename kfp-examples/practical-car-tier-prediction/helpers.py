@@ -272,10 +272,10 @@ if __name__ == "__main__":
 
     kfp.compiler.Compiler().compile(
         pipeline_func=data_preparation_pipeline,
-        package_path="as24-car-pipeline.yaml",
+        package_path="car-tier-pred-data-prep-pipeline.yaml",
         pipeline_parameters={
-            'bucket': 'as24-data',
-            'object': 'as24-study.csv'
+            'bucket': 'car-tier-pred-data',
+            'object': 'car-tier-pred-study.csv'
         }
     )
     
