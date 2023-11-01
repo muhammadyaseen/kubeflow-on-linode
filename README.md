@@ -15,7 +15,7 @@ We will use the following technologies:
 You will learn how to set up Kubeflow Pipelines on a Kubernetes cluster hosted on Linode. After this set up, you'll also get to run a simple but practical example of a pipeline which queries the US government's Census API to download some data and store it in a MinIO Bucket.
 
 - The instructions / tutorial is available in `kubeflow-pipelines-on-linode.md` file
-- Pipeline code is available in `kfp-examples/minio-census-pipeline.py`
+- Pipeline code is available in `kfp-examples/simple-minio-pipeline/minio_census_pipeline.py`
 
 ## Acknowledgements
 
