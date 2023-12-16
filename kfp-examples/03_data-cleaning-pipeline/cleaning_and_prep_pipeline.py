@@ -239,7 +239,7 @@ def data_preparation_pipeline(bucket: str, object: str) -> Dataset:
             raw_data=raw_data.outputs['raw_data_location']
         )
 
-        # Should happen after `save_raw_data_to_bucket`
+        # Should happen after `save_data_to_bucket`
         # TODO: cleaning should happen after making derived features
         cleaned_data = prepare_cleaned_dataset(
             bucket=bucket,
