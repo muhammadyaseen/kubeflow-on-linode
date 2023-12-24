@@ -1,0 +1,8 @@
+scikit-learn
+imblearn
+pandas
+kfp==2.0.1
+numpy
+matplotlib
+seaborn
+minio==7.1.14
