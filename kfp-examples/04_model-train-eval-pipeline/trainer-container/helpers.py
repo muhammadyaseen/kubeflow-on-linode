@@ -5,6 +5,7 @@ https://www.kubeflow.org/docs/components/pipelines/v2/components/container-compo
 """
 import io
 import logging
+import pickle
 
 from typing import Tuple, Dict, List
 
@@ -115,3 +116,54 @@ def get_train_and_test_data_as_numpy_arrays(
         "X_test": X_test,
         "Y_test": Y_test
     }
+
+
+def save_best_model_and_hparams_to_minio(
+    best_model, 
+    best_model_hparams_df,
+    minio_params: Dict[str, str]
+):
+    
+    try:
+
+        logger = logging.getLogger('kfp_logger')
+        logger.setLevel(logging.INFO)
+
+        # Read-in CSV from MinIO
+        # Create client with access and secret key
+        client = Minio(
+            f"{minio_params['ip']}:{minio_params['port']}",
+            'minio',
+            'minio123',
+            secure=False
+        )
+    
+        # Upload the hparams dataframe as an object.
+        encoded_df = best_model_hparams_df.to_csv(index=False).encode('utf-8')
+        client.put_object(
+            minio_params["bucket_name"], 
+            minio_params["object_name_df"], 
+            data=io.BytesIO(encoded_df), 
+            length=len(encoded_df), 
+            content_type='application/csv'
+        )
+        
+        logger.info(f'{minio_params["object_name_df"]} successfully uploaded to bucket {minio_params["bucket_name"]}.')
+        logger.info(f'Object length: {len(best_model_hparams_df)}.')
+        logger.info('Columns: ' + ', '.join(best_model_hparams_df.columns))  
+
+        # Upload the model/class object as pkl
+        object_as_bytes = pickle.dumps(best_model)
+        client.put_object(
+            minio_params["bucket_name"], 
+            minio_params["object_name_model"], 
+            data=io.BytesIO(object_as_bytes), 
+            length=len(object_as_bytes) 
+        )
+
+        logger.info(f'{minio_params["object_name_model"]} successfully uploaded to bucket {minio_params["bucket_name"]}.')
+        logger.info(f'Object length: {len(object_as_bytes)}.')
+    
+    except Exception as err:
+    
+        logger.error(f'Error occurred: {err}.')

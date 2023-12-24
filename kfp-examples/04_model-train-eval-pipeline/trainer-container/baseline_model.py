@@ -112,9 +112,35 @@ if __name__ == "__main__":
 
     print(ranks)
 
+    print(baseline_model.\
+          task_model_with_grid_search_trainer.\
+          best_estimator_
+    )
+
+    
+    helpers.save_best_model_and_hparams_to_minio(
+        baseline_model,
+        ranks,
+        {
+            **minio_params,
+            "bucket_name": sys.argv[4],
+            "object_name_df": "baseline_model_ranks.pandas_df",
+            "object_name_model": "baseline_model.obj"
+        }
+    )
+
+# TODOs:
+    
+# 1. save the best model as an artifact to minio
+# 2. save ranks DF as an artifact to minio i.e. save the top-5 rankings
+# 3. Ideally display ranks df as a markdown visual
+
 # docker run -p 9000:9000 myaseende/my-scikit \
 #      python baseline_model.py none localhost 9000 car-tier-prediction-data data-with-features-cleaned.csv
     
 # kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80
 # kubectl port-forward -n kubeflow svc/minio-service 9000:9000
 # minikube start -p basic-kfp
+    
+# Successfull MD: http://localhost:8080/#/runs/details/8c464f35-3b56-4265-9795-a221af36f504
+    

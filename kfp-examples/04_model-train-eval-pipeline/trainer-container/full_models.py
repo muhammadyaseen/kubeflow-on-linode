@@ -174,3 +174,25 @@ if __name__ == "__main__":
     Y_test_predicted, Y_train_predicted = test_full_model(full_model, X_test, X_train)
 
     Y_test_predicted, Y_train_predicted = test_full_model(full_model_with_resampling, X_test, X_train)
+
+    helpers.save_best_model_and_hparams_to_minio(
+        full_model,
+        full_model_ranks,
+        {
+            **minio_params,
+            "bucket_name": sys.argv[4],
+            "object_name_df": f"{get_model_class(model_name)}_ranks.pandas_df",
+            "object_name_model": f"{get_model_class(model_name)}_model.obj"
+        }
+    )
+
+    helpers.save_best_model_and_hparams_to_minio(
+        full_model,
+        full_model_ranks,
+        {
+            **minio_params,
+            "bucket_name": sys.argv[4],
+            "object_name_df": f"{get_model_class(model_name)}_ranks_resampled.pandas_df",
+            "object_name_model": f"{get_model_class(model_name)}_model_resampled.obj"
+        }
+    )
