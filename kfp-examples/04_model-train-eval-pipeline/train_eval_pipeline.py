@@ -46,17 +46,20 @@ def find_best_model_on_full_data(
     # "dtree":            dtree_metric.output,
     # "dtree_resampled":  dtree_resampled_metric.output
 
-    models_and_metrics = zip(
-        [
-            'baseline',
-            'lr'
-        ],
-        [
-            baseline_metric,
-            lr_metric
-        ]
+    models_and_metrics = dict(
+        zip(
+            [
+                'baseline',
+                'lr'
+            ],
+            [
+                baseline_metric,
+                lr_metric
+            ]
+        )
     )
-    return max(models_and_metrics, lambda key: models_and_metrics[key])
+    
+    return max(models_and_metrics, key=lambda key: models_and_metrics[key])
 
 
 @kfp.dsl.component(packages_to_install=['pandas', 'minio==7.1.14'])
