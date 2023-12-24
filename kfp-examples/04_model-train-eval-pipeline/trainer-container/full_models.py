@@ -30,12 +30,12 @@ def load_data_for_full_model(selected_features, minio_params):
 
     # training_and_testing_data = np.load("./numpy-data-full.npz", allow_pickle=True)
     training_and_testing_data = helpers.get_train_and_test_data_as_numpy_arrays(
-    selected_features,
-    minio_params,
-    resample_factors={
-        "Plus":  3,
-        "Premium": 3
-    }
+        selected_features,
+        minio_params,
+        resample_factors={
+            "Plus":  3,
+            "Premium": 3
+        }
     )
 
     X_train = training_and_testing_data['X_train']
@@ -109,7 +109,7 @@ def train_full_model(
         hparams
     )
 
-    full_model.train(X_train, Y_train.ravel(), verbose=1)
+    full_model.train(X_train, Y_train, verbose=1)
     full_model_ranks = full_model.show_best_model()
     print(full_model_ranks)
 
@@ -121,7 +121,7 @@ def train_full_model(
         hparams
     )
     
-    full_model_with_resampling.train(X_train_resampled, Y_train_resampled.ravel(), verbose=1)
+    full_model_with_resampling.train(X_train_resampled, Y_train_resampled, verbose=1)
     full_model_with_resampling_ranks = full_model_with_resampling.show_best_model()
     print(full_model_with_resampling_ranks)
 
@@ -175,16 +175,11 @@ if __name__ == "__main__":
 
     Y_test_predicted, Y_train_predicted = test_full_model(full_model_with_resampling, X_test, X_train)
 
-    helpers.save_best_model_and_hparams_to_minio(
-        full_model,
-        full_model_ranks,
-        {
-            **minio_params,
-            "bucket_name": sys.argv[4],
-            "object_name_df": f"{get_model_class(model_name)}_ranks.pandas_df",
-            "object_name_model": f"{get_model_class(model_name)}_model.obj"
-        }
-    )
+    print(full_model)
+    print(full_model_ranks)
+
+    print(full_model_ranks)
+    print(full_model_with_resampling_ranks)
 
     helpers.save_best_model_and_hparams_to_minio(
         full_model,
@@ -192,7 +187,18 @@ if __name__ == "__main__":
         {
             **minio_params,
             "bucket_name": sys.argv[4],
-            "object_name_df": f"{get_model_class(model_name)}_ranks_resampled.pandas_df",
-            "object_name_model": f"{get_model_class(model_name)}_model_resampled.obj"
+            "object_name_df": f"{model_name}_ranks.pandas_df",
+            "object_name_model": f"{model_name}_model.obj"
+        }
+    )
+
+    helpers.save_best_model_and_hparams_to_minio(
+        full_model_with_resampling,
+        full_model_with_resampling_ranks,
+        {
+            **minio_params,
+            "bucket_name": sys.argv[4],
+            "object_name_df": f"{model_name}_ranks_resampled.pandas_df",
+            "object_name_model": f"{model_name}_model_resampled.obj"
         }
     )

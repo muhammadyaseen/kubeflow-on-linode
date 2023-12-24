@@ -1,3 +1,5 @@
+import json
+from typing import Dict
 import kfp
 from kfp.dsl import Output, Dataset, Input, Markdown
 
@@ -7,18 +9,20 @@ def say_hello():
 
 @kfp.dsl.container_component
 def train_eval_baseline_model(
+    model_name: str,
+    script: str,
     ip: str,
     port: str,
     bucket_name: str,
     object_name: str
 ):
-    
+
     return kfp.dsl.ContainerSpec(
         image='myaseende/my-scikit:latest', 
         command=['python'], 
         args=[
-            'baseline_model.py',
-            'none',
+            script,
+            model_name,
             ip,
             port,
             bucket_name,
@@ -26,13 +30,43 @@ def train_eval_baseline_model(
         ]
     )
 
+@kfp.dsl.component
+def find_best_model_on_full_data(
+    baseline_metric: float,
+    lr_metric: float
+) -> str:
+    
+    # models_and_metrics_dict = json.loads(models_and_metrics)
+
+    #  "baseline":         base_line_metric.output,
+    # "lr":               lr_metric.output,
+    # "lr_resampled":     lr_resampled_metric.output,
+    # "gbt":              gbt_metric.output,
+    # "gbt_resampled":    gbt_resampeld_metric.output,
+    # "dtree":            dtree_metric.output,
+    # "dtree_resampled":  dtree_resampled_metric.output
+
+    models_and_metrics = zip(
+        [
+            'baseline',
+            'lr'
+        ],
+        [
+            baseline_metric,
+            lr_metric
+        ]
+    )
+    return max(models_and_metrics, lambda key: models_and_metrics[key])
+
+
 @kfp.dsl.component(packages_to_install=['pandas', 'minio==7.1.14'])
 def show_best_model_info(
+    model_name: str,
     ip: str,
     port: str,
     bucket_name: str, 
     object_name: str,
-    hparams_as_md: Output[Markdown]
+#    hparams_as_md: Output[Markdown]
 ) -> float:
 
     import logging
@@ -64,11 +98,11 @@ def show_best_model_info(
 
         logger.info('Columns: ' + ', '.join(pandas_df.columns))  
 
-        with open(hparams_as_md.path, 'w') as f:
-            f.write(pandas_df.to_markdown())
+        #with open(hparams_as_md.path, 'w') as f:
+        #    f.write(pandas_df.to_markdown())
         
         metric = pandas_df.loc[0, 'mean_test_balanced_accuracy'].item()
-        logger.info(f"Metric (mean_test_balanced_accuracy) on Baseline: {metric}")
+        logger.info(f"Metric (mean_test_balanced_accuracy) on {model_name}: {metric}")
 
         return metric
     
@@ -88,12 +122,18 @@ def model_train_eval_pipeline(
     port: str,
     bucket_name: str,
     object_name: str
-):
+) -> str:
 
+
+    ############################
+    # Baseline model
+    ############################
     greeting_task = say_hello()
 
     # This will train, eval, and save the model as well as hparams
     base_line_train_eval_task = train_eval_baseline_model(
+        model_name='baseline',
+        script='baseline_model.py',
         ip=ip,
         port=port,
         bucket_name=bucket_name,
@@ -102,14 +142,129 @@ def model_train_eval_pipeline(
 
     base_line_train_eval_task.set_caching_options(False)
 
-    metric = show_best_model_info(
+    base_line_metric = show_best_model_info(
+        model_name='baseline',
         ip=ip,
         port=port,
         bucket_name=bucket_name,
         object_name="baseline_model_ranks.pandas_df"
     ).after(base_line_train_eval_task)
 
-    metric.set_caching_options(False)
+    base_line_metric.set_caching_options(False)
+
+
+    ############################
+    # Full models
+    ############################
+    
+    # logistic reg
+    lr_train_eval_task = train_eval_baseline_model(
+        model_name='logistic_regression',
+        script='full_models.py',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name=object_name
+    )
+    lr_train_eval_task.set_caching_options(False)
+
+    lr_metric = show_best_model_info(
+        model_name='logistic_regression',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="logistic_regression_ranks.pandas_df"
+    ).after(lr_train_eval_task)
+
+    lr_resampled_metric = show_best_model_info(
+        model_name='logistic_regression_resampled',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="logistic_regression_ranks_resampled.pandas_df"
+    ).after(lr_train_eval_task)
+
+    lr_metric.set_caching_options(False)
+    lr_resampled_metric.set_caching_options(False)
+
+    # # gbt reg
+    gbt_train_eval_task = train_eval_baseline_model(
+        model_name='gbt',
+        script='full_models.py',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name=object_name
+    )
+    gbt_train_eval_task.set_caching_options(False)
+
+    gbt_metric = show_best_model_info(
+        model_name='gbt',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="gbt_ranks.pandas_df"
+    ).after(gbt_train_eval_task)
+    
+    gbt_resampeld_metric = show_best_model_info(
+        model_name='gbt_resampled',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="gbt_ranks_resampled.pandas_df"
+    ).after(gbt_train_eval_task)
+
+    gbt_metric.set_caching_options(False)
+    gbt_resampeld_metric.set_caching_options(False)
+
+    # # decision_tree reg
+    dtree_train_eval_task = train_eval_baseline_model(
+        model_name='decision_tree',
+        script='full_models.py',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name=object_name
+    )
+    dtree_train_eval_task.set_caching_options(False)
+
+    dtree_metric = show_best_model_info(
+        model_name='decision_tree',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="decision_tree_ranks.pandas_df"
+    ).after(dtree_train_eval_task)
+
+    dtree_resampled_metric = show_best_model_info(
+        model_name='decision_tree_resampled',
+        ip=ip,
+        port=port,
+        bucket_name=bucket_name,
+        object_name="decision_tree_ranks_resampled.pandas_df"
+    ).after(dtree_train_eval_task)
+
+    dtree_metric.set_caching_options(False)
+    dtree_resampled_metric.set_caching_options(False)
+
+    # ############################
+    # # Compare models
+    # ############################
+    # model_and_metric_dict={
+    #     "baseline":         base_line_metric.output,
+    #     "lr":               lr_metric.output,
+    #     "lr_resampled":     lr_resampled_metric.output,
+    #     "gbt":              gbt_metric.output,
+    #     "gbt_resampled":    gbt_resampeld_metric.output,
+    #     "dtree":            dtree_metric.output,
+    #     "dtree_resampled":  dtree_resampled_metric.output
+    # }
+    best_model = find_best_model_on_full_data(
+        baseline_metric=base_line_metric.output,
+        lr_metric=lr_metric.output,
+    )
+
+    return best_model.output
 
 if __name__ == "__main__":
 
