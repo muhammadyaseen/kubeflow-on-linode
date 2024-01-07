@@ -30,37 +30,72 @@ def train_eval_baseline_model(
         ]
     )
 
-@kfp.dsl.component
+@kfp.dsl.component(packages_to_install=['pandas'])
 def find_best_model_on_full_data(
     baseline_metric: float,
-    lr_metric: float
-) -> str:
+    lr_metric: float,
+    lr_resampled_metric: float,
+    gbt_metric: float,
+    gbt_resampled_metric: float,
+    dtree_metric: float,
+    dtree_resampled_metric: float,
+    experiment_summary: Output[Markdown]
+):
+
+    import logging
+    import pandas as pd
+
+    logger = logging.getLogger('kfp_logger')
+    logger.setLevel(logging.INFO)
     
-    # models_and_metrics_dict = json.loads(models_and_metrics)
+    model_names = [
+        'baseline',
+        'lr',
+        'lr_resampled',
+        'gbt',
+        'gbt_resampled',
+        'dtree',
+        'dtree_resampled'
+    ]
 
-    #  "baseline":         base_line_metric.output,
-    # "lr":               lr_metric.output,
-    # "lr_resampled":     lr_resampled_metric.output,
-    # "gbt":              gbt_metric.output,
-    # "gbt_resampled":    gbt_resampeld_metric.output,
-    # "dtree":            dtree_metric.output,
-    # "dtree_resampled":  dtree_resampled_metric.output
-
+    model_metrics = [
+        baseline_metric,
+        lr_metric,
+        lr_resampled_metric,
+        gbt_metric,
+        gbt_resampled_metric,
+        dtree_metric,
+        dtree_resampled_metric
+    ]
+    
     models_and_metrics = dict(
         zip(
-            [
-                'baseline',
-                'lr'
-            ],
-            [
-                baseline_metric,
-                lr_metric
-            ]
+            model_names,
+            model_metrics
         )
     )
-    
-    return max(models_and_metrics, key=lambda key: models_and_metrics[key])
 
+    best_model_name = max(models_and_metrics, key=lambda key: models_and_metrics[key])
+    best_model_metric = models_and_metrics[best_model_name]
+
+    # write experiments summary
+
+    logger.info('Writing experiment summary')
+    
+    with open(experiment_summary.path, 'w') as f:
+        
+        experiment_summary_df = pd.DataFrame({
+            # We replace the underscore so that Mardown is rendered properly
+            "Models": list(map(lambda name: name.replace("_", " "), model_names)),
+            "Metrics": model_metrics,
+        })
+
+        summaries_table_md = experiment_summary_df.to_markdown()
+        summaries_table_md += "\n\n"
+        summaries_table_md += f"The best model is **{best_model_name}** with evaluation metric value: **{best_model_metric}.**"
+        
+        f.write(summaries_table_md)
+    
 
 @kfp.dsl.component(packages_to_install=['pandas', 'minio==7.1.14'])
 def show_best_model_info(
@@ -69,7 +104,6 @@ def show_best_model_info(
     port: str,
     bucket_name: str, 
     object_name: str,
-#    hparams_as_md: Output[Markdown]
 ) -> float:
 
     import logging
@@ -125,7 +159,7 @@ def model_train_eval_pipeline(
     port: str,
     bucket_name: str,
     object_name: str
-) -> str:
+):
 
 
     ############################
@@ -253,6 +287,8 @@ def model_train_eval_pipeline(
     # ############################
     # # Compare models
     # ############################
+    # For some reason, collecting the results into a dictionary like this doesn't seem to work
+
     # model_and_metric_dict={
     #     "baseline":         base_line_metric.output,
     #     "lr":               lr_metric.output,
@@ -262,12 +298,18 @@ def model_train_eval_pipeline(
     #     "dtree":            dtree_metric.output,
     #     "dtree_resampled":  dtree_resampled_metric.output
     # }
-    best_model = find_best_model_on_full_data(
+    
+    # TODO: There has to be a better way of doing this, but for now we go with this (honestly) ugly solution
+    find_best_model_on_full_data(
         baseline_metric=base_line_metric.output,
         lr_metric=lr_metric.output,
+        lr_resampled_metric=lr_resampled_metric.output,
+        gbt_metric=gbt_metric.output,
+        gbt_resampled_metric=gbt_resampeld_metric.output,
+        dtree_metric=dtree_metric.output,
+        dtree_resampled_metric=dtree_resampled_metric.output
     )
 
-    return best_model.output
 
 if __name__ == "__main__":
 
