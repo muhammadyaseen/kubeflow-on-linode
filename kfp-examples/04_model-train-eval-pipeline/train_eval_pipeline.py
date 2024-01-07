@@ -3,9 +3,6 @@ from typing import Dict
 import kfp
 from kfp.dsl import Output, Dataset, Input, Markdown
 
-@kfp.dsl.container_component
-def say_hello():
-    return kfp.dsl.ContainerSpec(image='alpine', command=['echo'], args=['Hello'])
 
 @kfp.dsl.container_component
 def train_eval_baseline_model(
@@ -16,6 +13,9 @@ def train_eval_baseline_model(
     bucket_name: str,
     object_name: str
 ):
+    """
+    This component loads our main training container image and runs the code to train the models
+    """
 
     return kfp.dsl.ContainerSpec(
         image='myaseende/my-scikit:latest', 
@@ -41,6 +41,9 @@ def find_best_model_on_full_data(
     dtree_resampled_metric: float,
     experiment_summary: Output[Markdown]
 ):
+    """
+    Given the evaluation scores, find out which model did the best
+    """
 
     import logging
     import pandas as pd
@@ -48,6 +51,7 @@ def find_best_model_on_full_data(
     logger = logging.getLogger('kfp_logger')
     logger.setLevel(logging.INFO)
     
+    # TODO: there should be a better way to do this
     model_names = [
         'baseline',
         'lr',
@@ -78,7 +82,7 @@ def find_best_model_on_full_data(
     best_model_name = max(models_and_metrics, key=lambda key: models_and_metrics[key])
     best_model_metric = models_and_metrics[best_model_name]
 
-    # write experiments summary
+    # write experiments summary as a markdown table
 
     logger.info('Writing experiment summary')
     
@@ -105,6 +109,9 @@ def show_best_model_info(
     bucket_name: str, 
     object_name: str,
 ) -> float:
+    """
+    Retrieve the saved training metrics
+    """
 
     import logging
     import io
@@ -134,9 +141,6 @@ def show_best_model_info(
         pandas_df = pd.read_csv(io.BytesIO(response.data))
 
         logger.info('Columns: ' + ', '.join(pandas_df.columns))  
-
-        #with open(hparams_as_md.path, 'w') as f:
-        #    f.write(pandas_df.to_markdown())
         
         metric = pandas_df.loc[0, 'mean_test_balanced_accuracy'].item()
         logger.info(f"Metric (mean_test_balanced_accuracy) on {model_name}: {metric}")
@@ -161,11 +165,13 @@ def model_train_eval_pipeline(
     object_name: str
 ):
 
+    # Note: the `.set_caching_options(False)` call is used so that we don't reuse results from previous runs.
+    # This was required during developmenet because sometimes I change the container and push it to DockerHub, but 
+    # Kubeflow wasn't pulling the new container and was instead using old results.
 
     ############################
     # Baseline model
     ############################
-    greeting_task = say_hello()
 
     # This will train, eval, and save the model as well as hparams
     base_line_train_eval_task = train_eval_baseline_model(
@@ -175,7 +181,7 @@ def model_train_eval_pipeline(
         port=port,
         bucket_name=bucket_name,
         object_name=object_name
-    ).after(greeting_task)
+    )
 
     base_line_train_eval_task.set_caching_options(False)
 
@@ -194,7 +200,7 @@ def model_train_eval_pipeline(
     # Full models
     ############################
     
-    # logistic reg
+    # 1. Logistic regression + with resampling
     lr_train_eval_task = train_eval_baseline_model(
         model_name='logistic_regression',
         script='full_models.py',
@@ -224,7 +230,7 @@ def model_train_eval_pipeline(
     lr_metric.set_caching_options(False)
     lr_resampled_metric.set_caching_options(False)
 
-    # # gbt reg
+    # 2. Gradient Boosted Trees regression + with resampling
     gbt_train_eval_task = train_eval_baseline_model(
         model_name='gbt',
         script='full_models.py',
@@ -254,7 +260,7 @@ def model_train_eval_pipeline(
     gbt_metric.set_caching_options(False)
     gbt_resampeld_metric.set_caching_options(False)
 
-    # # decision_tree reg
+    # Decision Tree regression + with resampling
     dtree_train_eval_task = train_eval_baseline_model(
         model_name='decision_tree',
         script='full_models.py',
@@ -287,7 +293,7 @@ def model_train_eval_pipeline(
     # ############################
     # # Compare models
     # ############################
-    # For some reason, collecting the results into a dictionary like this doesn't seem to work
+    # TODO: For some reason, collecting the results into a dictionary like this doesn't seem to work
 
     # model_and_metric_dict={
     #     "baseline":         base_line_metric.output,
